@@ -1,13 +1,20 @@
 #!/usr/bin/env python
 
-import email
 import pprint
-import imaplib
+import config
 import ParseEmailsPackage
 
 __author__ = 'Athanasios Garyfalos'
 
+sslConnectionObj = ParseEmailsPackage.imapLibSslConnection.ImapLibSslConnectionProcess()
+loggingObj = sslConnectionObj.connection_ssl(config.USERNAME, config.PASSWORD)
+logoutObj = sslConnectionObj.connection_ssl_logout()
 
+pprint.pprint(loggingObj)
+pprint.pprint(logoutObj)
+exit(0)
+
+"""
 def initialization_process(user_name, user_password, folder):
     try:
         imap4 = imaplib.IMAP4_SSL('imap.gmail.com')  # Connects over an SSL encrypted socket
@@ -107,3 +114,5 @@ if __name__ == "__main__":
     main_dictionary = main(username, password, 'INBOX', 'BOKNING', 'tmp2')
     pprint.pprint(main_dictionary)
     exit(0)
+
+"""
