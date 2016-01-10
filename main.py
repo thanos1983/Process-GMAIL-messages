@@ -7,11 +7,22 @@ import ParseEmailsPackage
 __author__ = 'Athanasios Garyfalos'
 
 sslConnectionObj = ParseEmailsPackage.imapLibSslConnection.ImapLibSslConnectionProcess()
-loggingObj = sslConnectionObj.connection_ssl(config.USERNAME, config.PASSWORD)
-logoutObj = sslConnectionObj.connection_ssl_logout()
+initializationResult = sslConnectionObj.initialization(config.USERNAME,
+                                                       config.PASSWORD,
+                                                       config.FOLDER_TO_SCAN,
+                                                       config.GMAIL_IMAP)
 
-pprint.pprint(loggingObj)
-pprint.pprint(logoutObj)
+dictionary = {}
+if "ERROR" in str(initializationResult):
+    dictionary[config.GMAIL_IMAP] = initializationResult
+    pprint.pprint(initializationResult)
+    print("Send email")
+else:
+    dictionary[config.GMAIL_IMAP] = sslConnectionObj.email_process(config.FOLDER_TO_SCAN,
+                                                                   config.SUBJECT_TO_MATCH,
+                                                                   config.DESTINATION_FOLDER)
+    sslConnectionObj.connection_ssl_logout()
+    pprint.pprint(dictionary)
 exit(0)
 
 """
