@@ -5,7 +5,6 @@ import imaplib
 
 __author__ = 'Athanasios Garyfalos'
 
-# TODO: Check if file exists alternatively create file
 # TODO: Create send email process
 
 
@@ -13,14 +12,39 @@ class ImapLibSslConnectionProcess(object):
 
     def __init__(self):
 
+        self.error_str = None
         self.imap4_obj = None
 
-    def initialization(self, username, password, folder, imap):
+    def check_if_folder_exists(self, folder):
+        try:
+            # Create a new folder if does not exist
+            result, info = self.imap4_obj.select(folder)
+            if result != 'OK':
+                result, data = self.imap4_obj.create(folder)
+                # Check if folder has been created before
+                if result != 'OK':
+                    self.error_str = 'ERROR, creating folder: {}'.format(folder)
+                    return self.error_str
+                elif result == 'OK':
+                    return True
+                elif result == 'OK':
+                    # Folder exist proceed, nothing to do here
+                    return True
+            elif result == 'OK':
+                return True
+        except imaplib.IMAP4.error as e:
+            self.error_str = "ERROR, Imap4 creating folder: {}".format(e)
+            return self.error_str
+
+    def initialization(self, username, password, folder_scan, folder_destination, imap):
         try:
             self.imap4_obj = imaplib.IMAP4_SSL(imap)  # Connects over an SSL encrypted socket
             self.imap4_obj.login(username, password)
             self.imap4_obj.list()  # List of "folders" aka labels in gmail
-            self.imap4_obj.select(folder)  # Default INBOX folder alternative select('FOLDER')
+            result = self.check_if_folder_exists(folder_destination)
+            if "ERROR" in str(result):
+                return self.error_str
+            self.imap4_obj.select(folder_scan)  # Default INBOX folder alternative select('FOLDER')
         except imaplib.IMAP4.error as e:
             self.imap4_obj = "ERROR, Imap4 login: {}".format(e)
             return self.imap4_obj
@@ -35,7 +59,7 @@ class ImapLibSslConnectionProcess(object):
             return self.imap4_obj
         return True
 
-    def email_process(self, scan_folder, subject_match, destination_folder):
+    def email_process(self, scan_folder, subject_match, sender_match, destination_folder):
         dictionary = {}
         try:
             result, uids = self.imap4_obj.uid('search', None, "ALL")  # search and return uids
@@ -44,29 +68,26 @@ class ImapLibSslConnectionProcess(object):
                 return dictionary
             else:
                 for uid in uids[0].split():  # Each uid is a space separated string
-                    dictionary[uid] = {'MESSAGE BODY': None, 'BOOKING': None, 'SUBJECT': None, 'RESULT': None}
+                    dictionary[uid] = {'MESSAGE BODY': None, 'SUBJECT': None, 'RESULT': None}
                     result, header = self.imap4_obj.uid('fetch', uid, '(UID BODY[HEADER])')
                     if result != 'OK':
                         dictionary[uid] = 'ERROR, Can not retrieve "Header" from EMAIL'
-                    subject = email.message_from_string(header[0][1])
-                    subject = subject['Subject']
-                    if subject is None:
+                    header = email.message_from_string(header[0][1])
+                    dictionary[uid]['FROM'] = header['From']
+                    header = header['Subject']
+                    if header is None:
                         dictionary[uid]['SUBJECT'] = '(no subject)'
                     else:
-                        dictionary[uid]['SUBJECT'] = subject
-                    if subject_match in dictionary[uid]['SUBJECT']:
+                        dictionary[uid]['SUBJECT'] = header
+                    if subject_match in dictionary[uid]['SUBJECT'] and sender_match in dictionary[uid]['FROM']:
                         del dictionary[uid]['SUBJECT']
+                        del dictionary[uid]['FROM']
                         result, body = self.imap4_obj.uid('fetch', uid, '(UID BODY[TEXT])')
                         if result != 'OK':
                             dictionary[uid] = 'ERROR, Can not retrieve "Body" from EMAIL'
+                            continue
                         dictionary[uid]['MESSAGE BODY'] = body[0][1]
                         list_body = dictionary[uid]['MESSAGE BODY'].splitlines()
-                        found_list = []
-                        for i, j in enumerate(list_body):
-                            if 'Bokningsnummer:' in j:
-                                found_list.append(list_body[i])
-                                booking = found_list[0].split()
-                                dictionary[uid]['BOOKING'] = booking[1]
                         del dictionary[uid]['MESSAGE BODY']
                         result, copy = self.imap4_obj.uid('COPY', uid, destination_folder)
                         if result == 'OK':
@@ -84,7 +105,7 @@ class ImapLibSslConnectionProcess(object):
                     else:
                         del dictionary[uid]['MESSAGE BODY']
                         del dictionary[uid]['SUBJECT']
-                        del dictionary[uid]['BOOKING']
+                        del dictionary[uid]['FROM']
                         result, trashed = self.imap4_obj.uid('COPY', uid, '[Gmail]/Trash')
                         if result == 'OK':
                             dictionary[uid]['RESULT'] = 'TRASHED'
