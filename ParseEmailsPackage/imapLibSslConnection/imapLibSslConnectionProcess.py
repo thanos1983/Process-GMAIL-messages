@@ -45,7 +45,7 @@ class ImapLibSslConnectionProcess(object):
                     dictionary[uid] = {'MESSAGE BODY': None, 'BOOKING': None, 'SUBJECT': None, 'RESULT': None}
                     result, header = self.imap4_obj.uid('fetch', uid, '(UID BODY[HEADER])')
                     if result != 'OK':
-                        raise Exception('Can not retrieve "Header" from EMAIL: {}'.format(uid))
+                        dictionary[uid] = 'ERROR, Can not retrieve "Header" from EMAIL'
                     subject = email.message_from_string(header[0][1])
                     subject = subject['Subject']
                     if subject is None:
@@ -53,9 +53,10 @@ class ImapLibSslConnectionProcess(object):
                     else:
                         dictionary[uid]['SUBJECT'] = subject
                     if subject_match in dictionary[uid]['SUBJECT']:
+                        del dictionary[uid]['SUBJECT']
                         result, body = self.imap4_obj.uid('fetch', uid, '(UID BODY[TEXT])')
                         if result != 'OK':
-                            raise Exception('Can not retrieve "Body" from EMAIL: {}'.format(uid))
+                            dictionary[uid] = 'ERROR, Can not retrieve "Body" from EMAIL'
                         dictionary[uid]['MESSAGE BODY'] = body[0][1]
                         list_body = dictionary[uid]['MESSAGE BODY'].splitlines()
                         found_list = []
@@ -64,23 +65,20 @@ class ImapLibSslConnectionProcess(object):
                                 found_list.append(list_body[i])
                                 booking = found_list[0].split()
                                 dictionary[uid]['BOOKING'] = booking[1]
-                                del dictionary[uid]['MESSAGE BODY']
-                                del dictionary[uid]['SUBJECT']
-                                result, copy = self.imap4_obj.uid('COPY', uid, destination_folder)
-                                if result == 'OK':
-                                    dictionary[uid]['RESULT'] = 'COPIED'
-                                    result, delete = self.imap4_obj.uid('STORE', uid, '+FLAGS', '(\Deleted)')
-                                    self.imap4_obj.expunge()
-                                    if result == 'OK':
-                                        dictionary[uid]['RESULT'] = 'COPIED/DELETED'
-                                        pprint.pprint(dictionary)
-                                        exit(0)
-                                    elif result != 'OK':
-                                        dictionary[uid]['RESULT'] = 'ERROR'
-                                        continue
-                                elif result != 'OK':
-                                    dictionary[uid]['RESULT'] = 'ERROR'
-                                    continue
+                        del dictionary[uid]['MESSAGE BODY']
+                        result, copy = self.imap4_obj.uid('COPY', uid, destination_folder)
+                        if result == 'OK':
+                            dictionary[uid]['RESULT'] = 'COPIED'
+                            result, delete = self.imap4_obj.uid('STORE', uid, '+FLAGS', '(\Deleted)')
+                            self.imap4_obj.expunge()
+                            if result == 'OK':
+                                dictionary[uid]['RESULT'] = 'COPIED/DELETED'
+                            elif result != 'OK':
+                                dictionary[uid]['RESULT'] = 'ERROR'
+                                continue
+                        elif result != 'OK':
+                            dictionary[uid]['RESULT'] = 'ERROR'
+                            continue
                     else:
                         del dictionary[uid]['MESSAGE BODY']
                         del dictionary[uid]['SUBJECT']
@@ -92,8 +90,6 @@ class ImapLibSslConnectionProcess(object):
                             dictionary[uid]['RESULT'] = 'ERROR'
                             continue
                 dictionary = {scan_folder: dictionary}
-                pprint.pprint(dictionary)
-                exit(0)
                 return dictionary
         except imaplib.IMAP4.error as e:
             dictionary[scan_folder] = "ERROR, Imap4: {}".format(e)
