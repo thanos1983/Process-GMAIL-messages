@@ -2,9 +2,11 @@
 
 import email
 import imaplib
-import pprint
 
 __author__ = 'Athanasios Garyfalos'
+
+# TODO: Check if file exists alternatively create file
+# TODO: Create send email process
 
 
 class ImapLibSslConnectionProcess(object):
